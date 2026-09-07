@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // NOTE: json tags are required. Any new fields you add must have json tags for
@@ -303,5 +304,8 @@ type HyperFleetConfigList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&HyperFleetConfig{}, &HyperFleetConfigList{})
+	SchemeBuilder.Register(func(s *runtime.Scheme) error {
+		s.AddKnownTypes(SchemeGroupVersion, &HyperFleetConfig{}, &HyperFleetConfigList{})
+		return nil
+	})
 }
