@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,7 +61,16 @@ func Objects(
 		if err := ctrl.SetControllerReference(owner, obj, scheme); err != nil {
 			return fmt.Errorf("set controller reference on %s %q: %w", kind, obj.GetName(), err)
 		}
-		if err := c.Patch(ctx, obj, client.Apply, client.FieldOwner(FieldManager), client.ForceOwnership); err != nil {
+		// Client.Apply takes an apply configuration rather than a typed object;
+		// converting the rendered object to unstructured yields the same JSON the
+		// old client.Apply patch sent, so the server-side-apply semantics are
+		// unchanged.
+		content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+		if err != nil {
+			return fmt.Errorf("convert %s %q to unstructured: %w", kind, obj.GetName(), err)
+		}
+		ac := client.ApplyConfigurationFromUnstructured(&unstructured.Unstructured{Object: content})
+		if err := c.Apply(ctx, ac, client.FieldOwner(FieldManager), client.ForceOwnership); err != nil {
 			return fmt.Errorf("apply %s %q: %w", kind, obj.GetName(), err)
 		}
 	}
