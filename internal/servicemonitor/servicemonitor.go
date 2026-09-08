@@ -158,6 +158,12 @@ func hasServiceMonitorKind(list *metav1.APIResourceList) bool {
 // Operator API module for a single fixed object. The selector must match the
 // labels the operator's metrics Service carries (config/default/metrics_service.yaml)
 // or Prometheus scrapes nothing.
+//
+// The endpoint's scheme is hardcoded to "http", matching the HyperFleet metrics
+// standard's plain-HTTP default (--metrics-secure=false). Bootstrapper does not
+// know the operator's --metrics-secure setting, so if it is run with
+// --metrics-secure=true this ServiceMonitor will scrape an HTTPS+authn/authz
+// endpoint over plain HTTP and fail. See config/prometheus/monitor.yaml.
 func buildServiceMonitor(namespace string) *unstructured.Unstructured {
 	sm := &unstructured.Unstructured{}
 	sm.SetGroupVersionKind(schema.GroupVersionKind{Group: smGroup, Version: smVersion, Kind: smKind})

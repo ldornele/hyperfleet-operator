@@ -13,6 +13,14 @@ Metrics are exposed at:
 - **Protocol**: plain HTTP (`--metrics-secure=false` by default)
 - **Format**: OpenMetrics/Prometheus text format
 
+> The operator's ServiceMonitor (bundled at `config/prometheus/monitor.yaml`, and
+> the equivalent created at runtime by `internal/servicemonitor`) always scrapes
+> with `scheme: http`, matching the default above. Running with
+> `--metrics-secure=true` switches the endpoint to HTTPS with authn/authz, but
+> neither ServiceMonitor is updated to match — scrapes will fail until you
+> configure `scheme`/`tlsConfig`/`bearerToken` yourself (see
+> `config/prometheus/monitor_tls_patch.yaml`).
+
 The operator's custom collectors register into controller-runtime's registry, so
 they are served on the **same** `/metrics` endpoint as the built-in
 `controller_runtime_*` metrics — there is no second metrics server.

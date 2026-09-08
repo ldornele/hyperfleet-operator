@@ -14,6 +14,11 @@ spec:
   endpoints:
     - path: /metrics
       port: metrics # matches the metrics Service port name
+      # Hardcoded to the HyperFleet metrics standard's plain-HTTP default
+      # (--metrics-secure=false). If the operator is run with --metrics-secure=true,
+      # this scrape will fail: the endpoint requires HTTPS + authn/authz and this
+      # manifest is not updated automatically. Configure scheme/tlsConfig/bearerToken
+      # here yourself in that case (see config/prometheus/monitor_tls_patch.yaml).
       scheme: http
       interval: 30s
   selector:
