@@ -54,22 +54,31 @@ func Version() string {
 }
 
 // Commit returns the short VCS revision the binary was built from, or "unknown"
-// when it cannot be determined.
+// when it cannot be determined. Truncated to 7 characters regardless of source,
+// since CI conventionally injects the full 40-character SHA via -ldflags (see
+// GIT_SHA in the Tekton pipelines) while `make build`'s fallback below already
+// shortens it — both must agree on one format.
 func Commit() string {
 	if commit != "" {
-		return commit
+		return shortSHA(commit)
 	}
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, s := range info.Settings {
 			if s.Key == "vcs.revision" {
-				if len(s.Value) > 7 {
-					return s.Value[:7]
-				}
-				return s.Value
+				return shortSHA(s.Value)
 			}
 		}
 	}
 	return "unknown"
+}
+
+// shortSHA truncates a VCS revision to 7 characters, the convention this
+// package's docs and `git rev-parse --short` agree on.
+func shortSHA(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
 }
 
 // GoVersion returns the Go runtime version the binary was compiled with.

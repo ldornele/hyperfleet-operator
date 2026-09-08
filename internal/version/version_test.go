@@ -2,6 +2,9 @@ package version
 
 import "testing"
 
+// shortTestSHA is the 7-character digest shared by the Commit tests below.
+const shortTestSHA = "abc1234"
+
 // TestVersionPrefersInjectedValue verifies Version returns the ldflags-injected
 // value when one is set.
 func TestVersionPrefersInjectedValue(t *testing.T) {
@@ -32,9 +35,22 @@ func TestCommitPrefersInjectedValue(t *testing.T) {
 	orig := commit
 	t.Cleanup(func() { commit = orig })
 
-	commit = "abc1234"
-	if got := Commit(); got != "abc1234" {
-		t.Errorf("Commit() = %q, want abc1234", got)
+	commit = shortTestSHA
+	if got := Commit(); got != shortTestSHA {
+		t.Errorf("Commit() = %q, want %q", got, shortTestSHA)
+	}
+}
+
+// TestCommitTruncatesInjectedFullSHA verifies Commit shortens a full 40-character
+// injected SHA to 7 characters. CI (see .tekton/*.yaml GIT_SHA build-arg) injects
+// the full commit SHA via -ldflags, and the metric/doc contract is a short SHA.
+func TestCommitTruncatesInjectedFullSHA(t *testing.T) {
+	orig := commit
+	t.Cleanup(func() { commit = orig })
+
+	commit = shortTestSHA + "def5678900000000000000000000000a"
+	if got := Commit(); got != shortTestSHA {
+		t.Errorf("Commit() = %q, want %q", got, shortTestSHA)
 	}
 }
 
