@@ -119,13 +119,19 @@ func (r *HyperFleetConfigReconciler) detectRollouts(ctx context.Context, compone
 			events = append(events, rolloutEvent{component: component, trigger: metrics.TriggerCreate})
 		case err != nil:
 			log.V(1).Info("skipping rollout metric: could not read live operand",
-				"component", component, "deployment", dep.Name, "error", err.Error())
+				"operand", component, "deployment", dep.Name, "error", err.Error())
 		default:
 			prev := live.Annotations[templateHashAnnotation]
 			// prev == "" means we have never stamped this Deployment (e.g. first
 			// reconcile after upgrading to this operator version): adopt the hash
 			// silently rather than count a rollout we cannot attribute.
-			if prev != "" && prev != desired {
+			//
+			// The equality check itself hashes the live object directly rather than
+			// comparing prev to desired: prev only reflects what this operator last
+			// applied, so an out-of-band edit to the live Deployment (kubectl edit,
+			// HPA, a mutating webhook) that the next apply will revert would
+			// otherwise go undetected as a rollout.
+			if prev != "" && hashPodTemplate(live) != desired {
 				events = append(events, rolloutEvent{component: component, trigger: rolloutTrigger(live, dep)})
 			}
 		}
@@ -169,8 +175,10 @@ func sameContainerImages(a, b *appsv1.Deployment) bool {
 
 // recordReadiness reads the live status of each of a component's Deployments after
 // apply and publishes the operand readiness gauge. A Deployment is ready when it
-// reports the Available condition True. Best-effort: read errors are logged and the
-// gauge is left untouched rather than failing the reconcile.
+// reports the Available condition True. A missing Deployment is reported as not
+// ready, so the gauge doesn't stay stuck at its last value once the workload is
+// gone. Other read errors are best-effort: logged and the gauge is left untouched
+// rather than failing the reconcile, since the Deployment likely still exists.
 func (r *HyperFleetConfigReconciler) recordReadiness(ctx context.Context, component string, objs []client.Object) {
 	log := logf.FromContext(ctx)
 	for _, o := range objs {
@@ -179,12 +187,20 @@ func (r *HyperFleetConfigReconciler) recordReadiness(ctx context.Context, compon
 			continue
 		}
 		live := &appsv1.Deployment{}
-		if err := r.Get(ctx, client.ObjectKeyFromObject(dep), live); err != nil {
+		err := r.Get(ctx, client.ObjectKeyFromObject(dep), live)
+		switch {
+		case apierrors.IsNotFound(err):
+			// The Deployment is gone (deleted externally, or the component was
+			// dropped from the bundle spec): report not-ready rather than leaving
+			// the gauge stuck at its last value, which would otherwise say the
+			// operand is ready forever.
+			metrics.SetOperandReady(component, false)
+		case err != nil:
 			log.V(1).Info("skipping readiness metric: could not read live operand",
-				"component", component, "deployment", dep.Name, "error", err.Error())
-			continue
+				"operand", component, "deployment", dep.Name, "error", err.Error())
+		default:
+			metrics.SetOperandReady(component, deploymentAvailable(live))
 		}
-		metrics.SetOperandReady(component, deploymentAvailable(live))
 	}
 }
 
