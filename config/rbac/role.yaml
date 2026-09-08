@@ -82,23 +82,23 @@ rules:
   - list
   - watch
 - apiGroups:
-  - networking.k8s.io
+  - monitoring.coreos.com
   resources:
-  - networkpolicies
+  - servicemonitors
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
   - update
   - watch
 - apiGroups:
-  - monitoring.coreos.com
+  - networking.k8s.io
   resources:
-  - servicemonitors
+  - networkpolicies
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
