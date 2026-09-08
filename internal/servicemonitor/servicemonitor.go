@@ -110,7 +110,8 @@ func (b *Bootstrapper) Start(ctx context.Context) error {
 	}
 
 	sm := buildServiceMonitor(b.Namespace)
-	if err := cl.Patch(ctx, sm, client.Apply, client.FieldOwner(appName), client.ForceOwnership); err != nil {
+	applyConfig := client.ApplyConfigurationFromUnstructured(sm)
+	if err := cl.Apply(ctx, applyConfig, client.FieldOwner(appName), client.ForceOwnership); err != nil {
 		log.Error(err, "failed to apply operator ServiceMonitor",
 			"name", serviceMonitorName, "namespace", b.Namespace)
 		return nil
