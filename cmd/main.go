@@ -271,12 +271,22 @@ func main() {
 	// the InstallPlan on clusters without the monitoring.coreos.com CRD and block
 	// the operator install; this bootstrapper degrades gracefully instead. See the
 	// servicemonitor package doc for the full rationale.
-	if err := mgr.Add(&servicemonitor.Bootstrapper{
-		Config:    mgr.GetConfig(),
-		Namespace: operatorNamespace,
-	}); err != nil {
-		setupLog.Error(err, "unable to add ServiceMonitor bootstrapper")
-		os.Exit(1)
+	//
+	// Skipped entirely when metrics are disabled (metricsAddr == "0", the same
+	// sentinel controller-runtime's metrics server itself checks — see
+	// metricsserver.NewServer): the ServiceMonitor always points at the metrics
+	// Service's "metrics" port, so with no metrics server listening it would only
+	// give Prometheus a target that fails every scrape.
+	if metricsAddr != "0" {
+		if err := mgr.Add(&servicemonitor.Bootstrapper{
+			Config:    mgr.GetConfig(),
+			Namespace: operatorNamespace,
+		}); err != nil {
+			setupLog.Error(err, "unable to add ServiceMonitor bootstrapper")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("metrics disabled (metrics-bind-address=0); skipping ServiceMonitor bootstrap")
 	}
 
 	if metricsCertWatcher != nil {
