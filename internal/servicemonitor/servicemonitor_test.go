@@ -19,14 +19,20 @@ package servicemonitor
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // TestBuildServiceMonitor verifies buildServiceMonitor renders the expected
-// name, namespace, GVK, metrics Service selector and single scrape endpoint.
+// name, namespace, GVK, metrics Service selector, owner reference and single
+// scrape endpoint.
 func TestBuildServiceMonitor(t *testing.T) {
-	sm := buildServiceMonitor("hyperfleet-system")
+	owner := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: metricsServiceName, UID: types.UID("test-uid")},
+	}
+	sm := buildServiceMonitor("hyperfleet-system", owner)
 
 	if got := sm.GetName(); got != serviceMonitorName {
 		t.Errorf("name = %q, want %q", got, serviceMonitorName)
@@ -36,6 +42,16 @@ func TestBuildServiceMonitor(t *testing.T) {
 	}
 	if gvk := sm.GroupVersionKind(); gvk.Group != smGroup || gvk.Version != smVersion || gvk.Kind != smKind {
 		t.Errorf("gvk = %v, want %s/%s %s", gvk, smGroup, smVersion, smKind)
+	}
+
+	// The ServiceMonitor must be owned by the metrics Service, so it is
+	// garbage-collected when the operator's install (and that Service) is removed.
+	owners := sm.GetOwnerReferences()
+	if len(owners) != 1 {
+		t.Fatalf("len(ownerReferences) = %d, want 1", len(owners))
+	}
+	if owners[0].Kind != "Service" || owners[0].Name != owner.Name || owners[0].UID != owner.UID {
+		t.Errorf("ownerReferences[0] = %+v, want Kind=Service Name=%s UID=%s", owners[0], owner.Name, owner.UID)
 	}
 
 	// The ServiceMonitor selector must match the labels the operator's metrics

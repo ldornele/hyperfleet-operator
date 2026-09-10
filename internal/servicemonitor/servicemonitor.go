@@ -31,6 +31,7 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -58,6 +59,11 @@ const (
 	// appName is the operator's app.kubernetes.io/name label value and its
 	// server-side-apply field-manager identity.
 	appName = "hyperfleet-operator"
+	// metricsServiceName is the operator's metrics Service (config/default/
+	// metrics_service.yaml). The ServiceMonitor is set to be owned by it, so it is
+	// garbage-collected along with the rest of the operator's install instead of
+	// being left behind as an orphan.
+	metricsServiceName = "controller-manager-metrics-service"
 	// controlPlane is the control-plane label value shared by the operator's
 	// Deployment, its metrics Service and this ServiceMonitor.
 	controlPlane = "controller-manager"
@@ -109,7 +115,18 @@ func (b *Bootstrapper) Start(ctx context.Context) error {
 		return nil
 	}
 
-	sm := buildServiceMonitor(b.Namespace)
+	// Own the ServiceMonitor by the metrics Service it scrapes, so it is
+	// garbage-collected when the operator's install is removed instead of being
+	// left behind as an orphan (it lives in the operator's own namespace, so a
+	// same-namespace owner reference is valid).
+	svc := &corev1.Service{}
+	if err := cl.Get(ctx, client.ObjectKey{Name: metricsServiceName, Namespace: b.Namespace}, svc); err != nil {
+		log.Error(err, "could not read metrics Service; skipping ServiceMonitor bootstrap",
+			"name", metricsServiceName, "namespace", b.Namespace)
+		return nil
+	}
+
+	sm := buildServiceMonitor(b.Namespace, svc)
 	applyConfig := client.ApplyConfigurationFromUnstructured(sm)
 	if err := cl.Apply(ctx, applyConfig, client.FieldOwner(appName), client.ForceOwnership); err != nil {
 		log.Error(err, "failed to apply operator ServiceMonitor",
@@ -158,14 +175,16 @@ func hasServiceMonitorKind(list *metav1.APIResourceList) bool {
 // object. Unstructured avoids taking a compile-time dependency on the Prometheus
 // Operator API module for a single fixed object. The selector must match the
 // labels the operator's metrics Service carries (config/default/metrics_service.yaml)
-// or Prometheus scrapes nothing.
+// or Prometheus scrapes nothing. It is owned by that same Service, so deleting
+// the operator's install (and its metrics Service with it) garbage-collects the
+// ServiceMonitor too, instead of leaving it behind as an orphan.
 //
 // The endpoint's scheme is hardcoded to "http", matching the HyperFleet metrics
 // standard's plain-HTTP default (--metrics-secure=false). Bootstrapper does not
 // know the operator's --metrics-secure setting, so if it is run with
 // --metrics-secure=true this ServiceMonitor will scrape an HTTPS+authn/authz
 // endpoint over plain HTTP and fail. See config/prometheus/monitor.yaml.
-func buildServiceMonitor(namespace string) *unstructured.Unstructured {
+func buildServiceMonitor(namespace string, owner *corev1.Service) *unstructured.Unstructured {
 	sm := &unstructured.Unstructured{}
 	sm.SetGroupVersionKind(schema.GroupVersionKind{Group: smGroup, Version: smVersion, Kind: smKind})
 	sm.SetName(serviceMonitorName)
@@ -175,6 +194,12 @@ func buildServiceMonitor(namespace string) *unstructured.Unstructured {
 		"app.kubernetes.io/name":       appName,
 		"app.kubernetes.io/managed-by": appName,
 	})
+	sm.SetOwnerReferences([]metav1.OwnerReference{{
+		APIVersion: "v1",
+		Kind:       "Service",
+		Name:       owner.Name,
+		UID:        owner.UID,
+	}})
 	sm.Object["spec"] = map[string]any{
 		"selector": map[string]any{
 			"matchLabels": map[string]any{

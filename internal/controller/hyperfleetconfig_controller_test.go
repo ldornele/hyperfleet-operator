@@ -206,6 +206,35 @@ var _ = Describe("HyperFleetConfig Controller", func() {
 		Expect(cm.ResourceVersion).To(Equal(cmRV), "server-side apply of identical state must be a no-op")
 	})
 
+	It("does not record a spurious rollout on a no-op reconcile against a real API server", func() {
+		// detectRollouts hashes the live Deployment's pod template directly (to catch
+		// out-of-band drift a stamped annotation could miss — see its doc comment).
+		// A fake client would never expose the bug this guards against: only a real
+		// API server injects defaults (DNSPolicy, RestartPolicy, SchedulerName, the
+		// container's TerminationMessagePath/Policy, etc.) into the pod template that
+		// component.Render never sets. If hashPodTemplate is not robust to those
+		// additions, every reconcile — forever — looks like a config-triggered
+		// rollout, because live is never equal to desired again after the first apply.
+		By("reconciling to create the operands")
+		doReconcile()
+
+		configBefore := testutil.ToFloat64(
+			metrics.OperandRollouts.WithLabelValues(apicomponent.ComponentName, metrics.TriggerConfig))
+		imageBefore := testutil.ToFloat64(
+			metrics.OperandRollouts.WithLabelValues(apicomponent.ComponentName, metrics.TriggerImage))
+
+		By("reconciling twice more with no spec change")
+		doReconcile()
+		doReconcile()
+
+		Expect(testutil.ToFloat64(
+			metrics.OperandRollouts.WithLabelValues(apicomponent.ComponentName, metrics.TriggerConfig))).
+			To(Equal(configBefore), "a no-op reconcile must not count a config-triggered rollout")
+		Expect(testutil.ToFloat64(
+			metrics.OperandRollouts.WithLabelValues(apicomponent.ComponentName, metrics.TriggerImage))).
+			To(Equal(imageBefore), "a no-op reconcile must not count an image-triggered rollout")
+	})
+
 	It("stamps a config-hash on the Deployment and rolls it when a referenced secret rotates", func() {
 		By("creating the referenced database secret")
 		dbSecret := &corev1.Secret{

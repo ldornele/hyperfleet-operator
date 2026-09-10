@@ -126,12 +126,18 @@ func (r *HyperFleetConfigReconciler) detectRollouts(ctx context.Context, compone
 			// reconcile after upgrading to this operator version): adopt the hash
 			// silently rather than count a rollout we cannot attribute.
 			//
-			// The equality check itself hashes the live object directly rather than
-			// comparing prev to desired: prev only reflects what this operator last
-			// applied, so an out-of-band edit to the live Deployment (kubectl edit,
-			// HPA, a mutating webhook) that the next apply will revert would
-			// otherwise go undetected as a rollout.
-			if prev != "" && hashPodTemplate(live) != desired {
+			// configChanged compares prev to desired — both Go-rendered hashes — rather
+			// than hashing live directly: a real API server defaults fields
+			// (DNSPolicy, RestartPolicy, SchedulerName, ...) that component.Render never
+			// sets, so live's hash would never match desired again after the first
+			// apply (verified against envtest; a fake client can't catch this — see
+			// hyperfleetconfig_controller_test.go). imageChanged compares live and
+			// desired directly instead, since Image is a plain string the API server
+			// never defaults; it still catches an out-of-band image edit the annotation
+			// alone would miss.
+			configChanged := prev != "" && prev != desired
+			imageChanged := !sameContainerImages(live, dep)
+			if configChanged || imageChanged {
 				events = append(events, rolloutEvent{component: component, trigger: rolloutTrigger(live, dep)})
 			}
 		}
