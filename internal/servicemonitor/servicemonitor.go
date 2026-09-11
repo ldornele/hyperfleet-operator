@@ -59,11 +59,13 @@ const (
 	// appName is the operator's app.kubernetes.io/name label value and its
 	// server-side-apply field-manager identity.
 	appName = "hyperfleet-operator"
-	// metricsServiceName is the operator's metrics Service (config/default/
-	// metrics_service.yaml). The ServiceMonitor is set to be owned by it, so it is
-	// garbage-collected along with the rest of the operator's install instead of
-	// being left behind as an orphan.
-	metricsServiceName = "controller-manager-metrics-service"
+	// metricsServiceName is the operator's metrics Service, as named after
+	// config/default's namePrefix (hyperfleet-operator-) is applied to
+	// config/default/metrics_service.yaml, matching the name used in OLM
+	// bundle manifests. The ServiceMonitor is set to be owned by this Service,
+	// so it is garbage-collected along with the rest of the operator's install
+	// instead of being left behind as an orphan.
+	metricsServiceName = "hyperfleet-operator-controller-manager-metrics-service"
 	// controlPlane is the control-plane label value shared by the operator's
 	// Deployment, its metrics Service and this ServiceMonitor.
 	controlPlane = "controller-manager"
