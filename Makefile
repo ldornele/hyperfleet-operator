@@ -364,12 +364,16 @@ bundle-push: check-container-tool ## Push bundle image to registry
 CATALOG_TEMPLATE ?= catalog/konflux-template.yaml
 CATALOG_RENDERED ?= catalog/hyperfleet-operator/catalog.yaml
 .PHONY: catalog-render
+# BUNDLE_IMG reaches the recipe through the environment, never as shell or sed syntax
+catalog-render: export CATALOG_BUNDLE_IMG = $(BUNDLE_IMG)
 catalog-render: opm ## Render the catalog from CATALOG_TEMPLATE using BUNDLE_IMG as the bundle image
+	@[[ "$$CATALOG_BUNDLE_IMG" =~ ^[A-Za-z0-9][A-Za-z0-9._/:@-]*$$ ]] || \
+		{ echo "Error: BUNDLE_IMG is not a valid image reference: $$CATALOG_BUNDLE_IMG"; exit 1; }
 	@mkdir -p _output $(dir $(CATALOG_RENDERED))
-	sed 's|image: .*|image: $(BUNDLE_IMG)|' $(CATALOG_TEMPLATE) > _output/catalog-template.yaml
+	sed "s|image: .*|image: $$CATALOG_BUNDLE_IMG|" $(CATALOG_TEMPLATE) > _output/catalog-template.yaml
 	$(OPM) alpha render-template basic --migrate-level=bundle-object-to-csv-metadata \
 		-o yaml _output/catalog-template.yaml > $(CATALOG_RENDERED)
-	@echo "Rendered $(CATALOG_RENDERED) with bundle image: $(BUNDLE_IMG)"
+	@echo "Rendered $(CATALOG_RENDERED) with bundle image: $$CATALOG_BUNDLE_IMG"
 
 .PHONY: catalog-build
 catalog-build: catalog-render ## Render the catalog and build the catalog image
