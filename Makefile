@@ -416,14 +416,25 @@ endif
 
 .PHONY: opm
 OPM = $(LOCALBIN)/opm
-opm: ## Download opm locally if necessary.
+OPM_VERSION ?= v1.55.0
+OPM_PLATFORM = $(shell go env GOOS)-$(shell go env GOARCH)
+# sha256 of the $(OPM_VERSION) release binaries, from the release's checksums.txt
+OPM_SHA256_linux-amd64 := eed05ce8d6c21bb4acf4683f270ea7fd69ecf492cb58459c5689575c80800921
+OPM_SHA256_linux-arm64 := 4048b965d25a96bdaca5c2ca4e45418ba286391f960708e774760c7abfa509ad
+OPM_SHA256_darwin-amd64 := 69d13eab1faf88031ce3cdcc91aa0a430e1e15f3f96294660a0e29cba17751eb
+OPM_SHA256_darwin-arm64 := 7b8f4e904888f4551289793d0a5c43dfb37985ee1ad6d1b6db2d1859e60d3f37
+OPM_SHA256 = $(OPM_SHA256_$(OPM_PLATFORM))
+opm: ## Download opm locally if necessary, verified against a pinned checksum.
 ifeq (,$(wildcard $(OPM)))
 ifeq (,$(shell which opm 2>/dev/null))
 	@{ \
 	set -e ;\
+	if [ -z "$(OPM_SHA256)" ]; then echo "Error: no pinned opm checksum for $(OPM_PLATFORM)"; exit 1; fi ;\
 	mkdir -p $(dir $(OPM)) ;\
-	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.55.0/$${OS}-$${ARCH}-opm ;\
+	curl -fsSLo $(OPM).download https://github.com/operator-framework/operator-registry/releases/download/$(OPM_VERSION)/$(OPM_PLATFORM)-opm ;\
+	if command -v sha256sum >/dev/null 2>&1; then SHA256="sha256sum"; else SHA256="shasum -a 256"; fi ;\
+	echo "$(OPM_SHA256)  $(OPM).download" | $$SHA256 -c - || { rm -f $(OPM).download; echo "Error: opm checksum mismatch"; exit 1; } ;\
+	mv $(OPM).download $(OPM) ;\
 	chmod +x $(OPM) ;\
 	}
 else
