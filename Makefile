@@ -359,22 +359,27 @@ bundle-push: check-container-tool ## Push bundle image to registry
 	$(CONTAINER_TOOL) push $(BUNDLE_IMG)
 	@echo "Image pushed: $(BUNDLE_IMG)"
 
-TEMPLATEFILE ?= dev-template.yaml
-.PHONY: catalog-template-update-bundle-img
-catalog-template-update-bundle-img: ## Update the bundle image in the TEMPLATEFILE
-	@if [ ! -f catalog/$(TEMPLATEFILE) ]; then \
-		echo "Error: Template file catalog/$(TEMPLATEFILE) does not exist"; \
-		exit 1; \
-	fi
-	@sed -i.bak 's|image: .*|image: $(BUNDLE_IMG)|' catalog/$(TEMPLATEFILE) && rm catalog/$(TEMPLATEFILE).bak
-	@echo "Updated catalog/$(TEMPLATEFILE) with image: $(BUNDLE_IMG)"
+# Konflux renders the same template in the run-opm-command pipeline task.
+# Locally the olm.bundle image is swapped for BUNDLE_IMG, the template itself is left untouched.
+CATALOG_TEMPLATE ?= catalog/konflux-template.yaml
+CATALOG_RENDERED ?= catalog/hyperfleet-operator/catalog.yaml
+.PHONY: catalog-render
+# BUNDLE_IMG reaches the recipe through the environment, never as shell or sed syntax
+catalog-render: export CATALOG_BUNDLE_IMG = $(BUNDLE_IMG)
+catalog-render: opm ## Render the catalog from CATALOG_TEMPLATE using BUNDLE_IMG as the bundle image
+	@[[ "$$CATALOG_BUNDLE_IMG" =~ ^[A-Za-z0-9][A-Za-z0-9._/:@-]*$$ ]] || \
+		{ echo "Error: BUNDLE_IMG is not a valid image reference: $$CATALOG_BUNDLE_IMG"; exit 1; }
+	@mkdir -p _output $(dir $(CATALOG_RENDERED))
+	sed "s|image: .*|image: $$CATALOG_BUNDLE_IMG|" $(CATALOG_TEMPLATE) > _output/catalog-template.yaml
+	$(OPM) alpha render-template basic --migrate-level=bundle-object-to-csv-metadata \
+		-o yaml _output/catalog-template.yaml > $(CATALOG_RENDERED)
+	@echo "Rendered $(CATALOG_RENDERED) with bundle image: $$CATALOG_BUNDLE_IMG"
 
 .PHONY: catalog-build
-catalog-build: ## Build the catalog image with TEMPLATEFILE overrides 
+catalog-build: catalog-render ## Render the catalog and build the catalog image
 	$(CONTAINER_TOOL) build \
 		-f catalog.Dockerfile \
 		--platform $(PLATFORM) \
-		--build-arg TEMPLATEFILE="$(TEMPLATEFILE)" \
 		--build-arg APP_VERSION="$(APP_VERSION)" \
 		-t $(CATALOG_IMG) .
 
@@ -415,14 +420,25 @@ endif
 
 .PHONY: opm
 OPM = $(LOCALBIN)/opm
-opm: ## Download opm locally if necessary.
+OPM_VERSION ?= v1.55.0
+OPM_PLATFORM = $(shell go env GOOS)-$(shell go env GOARCH)
+# sha256 of the $(OPM_VERSION) release binaries, from the release's checksums.txt
+OPM_SHA256_linux-amd64 := eed05ce8d6c21bb4acf4683f270ea7fd69ecf492cb58459c5689575c80800921
+OPM_SHA256_linux-arm64 := 4048b965d25a96bdaca5c2ca4e45418ba286391f960708e774760c7abfa509ad
+OPM_SHA256_darwin-amd64 := 69d13eab1faf88031ce3cdcc91aa0a430e1e15f3f96294660a0e29cba17751eb
+OPM_SHA256_darwin-arm64 := 7b8f4e904888f4551289793d0a5c43dfb37985ee1ad6d1b6db2d1859e60d3f37
+OPM_SHA256 = $(OPM_SHA256_$(OPM_PLATFORM))
+opm: ## Download opm locally if necessary, verified against a pinned checksum.
 ifeq (,$(wildcard $(OPM)))
 ifeq (,$(shell which opm 2>/dev/null))
 	@{ \
 	set -e ;\
+	if [ -z "$(OPM_SHA256)" ]; then echo "Error: no pinned opm checksum for $(OPM_PLATFORM)"; exit 1; fi ;\
 	mkdir -p $(dir $(OPM)) ;\
-	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.55.0/$${OS}-$${ARCH}-opm ;\
+	curl -fsSLo $(OPM).download https://github.com/operator-framework/operator-registry/releases/download/$(OPM_VERSION)/$(OPM_PLATFORM)-opm ;\
+	if command -v sha256sum >/dev/null 2>&1; then SHA256="sha256sum"; else SHA256="shasum -a 256"; fi ;\
+	echo "$(OPM_SHA256)  $(OPM).download" | $$SHA256 -c - || { rm -f $(OPM).download; echo "Error: opm checksum mismatch"; exit 1; } ;\
+	mv $(OPM).download $(OPM) ;\
 	chmod +x $(OPM) ;\
 	}
 else
