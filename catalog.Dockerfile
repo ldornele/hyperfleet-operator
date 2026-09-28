@@ -1,5 +1,5 @@
 # Building stage
-FROM quay.io/konflux-ci/operator-sdk-builder:latest@sha256:bd34ca58b2d08e8ee3b9cdf46b32f69173084ca09c1d3aba47285e2c35b4d1fc AS builder
+FROM quay.io/konflux-ci/operator-sdk-builder:latest@sha256:bc390cc52ffdd350f146932e0383e7843b509e51dde0c34d0f68b025ed6ff871 AS builder
 WORKDIR /workspace
 ARG TEMPLATEFILE
 COPY catalog/base-template.yaml ./
