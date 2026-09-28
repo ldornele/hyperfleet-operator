@@ -13,7 +13,7 @@ operator image ──nudge──▶ bundle image ──nudge──▶ catalog im
 2. **Nudge to bundle** — Konflux auto-merges the new operator image digest into `config/manifests/prod/kustomization.yaml`. This commit triggers the `operator-bundle-push` pipeline, which builds a new bundle image containing the updated operator reference.
    > Updates to `RELATED_IMAGE_HYPERFLEET_API` also trigger this pipeline.
 
-3. **Nudge to catalog** — Konflux auto-merges the new bundle image digest into `catalog/konflux-template.yaml`. This commit triggers the `operator-catalog-push` pipeline, which builds the catalog image and publishes it to `quay.io/redhat-services-prod/hyperfleet-tenant/hyperfleet/hyperfleet-operator-catalog`.
+3. **Nudge to catalog** — Konflux auto-merges the new bundle image digest into `catalog/konflux-template.yaml`. This commit triggers the `operator-catalog-push` pipeline. Its `run-opm-command` task renders the template into `catalog/hyperfleet-operator/catalog.yaml` before the image build, so [catalog.Dockerfile](../catalog.Dockerfile) only copies the rendered catalog and never pulls the bundle image. The pipeline then builds the catalog image and publishes it to `quay.io/redhat-services-prod/hyperfleet-tenant/hyperfleet/hyperfleet-operator-catalog`.
 
 > **Note**: Manual changes to [bundle.Dockerfile](../bundle.Dockerfile) or `config/manifests/prod/kustomization.yaml` will also trigger the bundle pipeline. Similarly, changes to [konflux-template.yaml](../catalog/konflux-template.yaml) or [catalog.Dockerfile](../catalog.Dockerfile) will trigger the catalog pipeline.
 
@@ -63,33 +63,27 @@ For local development and installation, set your Quay username to automatically 
 ### Bundle + Catalog with OLM Classic V0
 Testing hyperfleet-operator installation with OLM using a catalog image.
 
-The catalog build uses a template system with a base template (`catalog/base-template.yaml`) that defines the package and channel, and environment-specific templates that specify the bundle image:
-- `catalog/dev-template.yaml` - for local development (default)
-- `catalog/konflux-template.yaml` - for Konflux CI builds
+The catalog is defined by a single template, `catalog/konflux-template.yaml`, holding the package, channel and bundle entries. It is rendered before the image build, never inside `catalog.Dockerfile`: Konflux renders it in the pipeline, and locally `make catalog-render` renders it with the `olm.bundle` image swapped for `BUNDLE_IMG`. The rendered `catalog/hyperfleet-operator/catalog.yaml` is git-ignored.
 
 **Note:** Ensure `QUAY_USER`, `BUNDLE_IMG` and `CATALOG_IMG` are set before running these commands
 **Note:** Make sure you have completed the steps in [Prerequisite Steps](#prerequisite-steps)
 
-1. **Update the catalog template with the new bundle image:**
+1. **Render the catalog and build the catalog image:**
    ```bash
-   make catalog-template-update-bundle-img BUNDLE_IMG=... TEMPLATEFILE=...
-   # default TEMPLATEFILE=dev-template.yaml
+   make catalog-build BUNDLE_IMG=... CATALOG_IMG=...
+   # runs make catalog-render first, which renders catalog/hyperfleet-operator/catalog.yaml
    # default BUNDLE_IMG=quay.io/$QUAY_USER/hyperfleet-operator-bundle:v$(VERSION)
-   # updates catalog/<TEMPLATEFILE> with the current BUNDLE_IMG
-   ```
-
-2. **Build the catalog image:**
-   ```bash
-   make catalog-build CATALOG_IMG=...
    # default CATALOG_IMG=quay.io/$QUAY_USER/hyperfleet-operator-catalog:v$(VERSION)
    # default VERSION = 0.0.1
    ```
-3. **Push the catalog image:**
+   The bundle image must already be pushed, rendering pulls it to read its metadata.
+
+2. **Push the catalog image:**
    ```bash
    make catalog-push CATALOG_IMG=...
    ```
 
-4. **Deploy on a k8s cluster with OLM:**
+3. **Deploy on a k8s cluster with OLM:**
    ```bash
    # Install OLM if not already installed
    operator-sdk olm install
@@ -140,7 +134,7 @@ The catalog build uses a template system with a base template (`catalog/base-tem
    kubectl get sub,installplan,csv -n <NAMESPACE> -w
    ```
 
-5. **Cleanup:**
+4. **Cleanup:**
     ```bash
     # IMPORTANT: Delete CRs before uninstalling operator
     kubectl get hyperfleetconfig -o yaml > hyperfleetconfig-backup.yaml

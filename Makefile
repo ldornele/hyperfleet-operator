@@ -359,22 +359,23 @@ bundle-push: check-container-tool ## Push bundle image to registry
 	$(CONTAINER_TOOL) push $(BUNDLE_IMG)
 	@echo "Image pushed: $(BUNDLE_IMG)"
 
-TEMPLATEFILE ?= dev-template.yaml
-.PHONY: catalog-template-update-bundle-img
-catalog-template-update-bundle-img: ## Update the bundle image in the TEMPLATEFILE
-	@if [ ! -f catalog/$(TEMPLATEFILE) ]; then \
-		echo "Error: Template file catalog/$(TEMPLATEFILE) does not exist"; \
-		exit 1; \
-	fi
-	@sed -i.bak 's|image: .*|image: $(BUNDLE_IMG)|' catalog/$(TEMPLATEFILE) && rm catalog/$(TEMPLATEFILE).bak
-	@echo "Updated catalog/$(TEMPLATEFILE) with image: $(BUNDLE_IMG)"
+# Konflux renders the same template in the run-opm-command pipeline task.
+# Locally the olm.bundle image is swapped for BUNDLE_IMG, the template itself is left untouched.
+CATALOG_TEMPLATE ?= catalog/konflux-template.yaml
+CATALOG_RENDERED ?= catalog/hyperfleet-operator/catalog.yaml
+.PHONY: catalog-render
+catalog-render: opm ## Render the catalog from CATALOG_TEMPLATE using BUNDLE_IMG as the bundle image
+	@mkdir -p _output $(dir $(CATALOG_RENDERED))
+	sed 's|image: .*|image: $(BUNDLE_IMG)|' $(CATALOG_TEMPLATE) > _output/catalog-template.yaml
+	$(OPM) alpha render-template basic --migrate-level=bundle-object-to-csv-metadata \
+		-o yaml _output/catalog-template.yaml > $(CATALOG_RENDERED)
+	@echo "Rendered $(CATALOG_RENDERED) with bundle image: $(BUNDLE_IMG)"
 
 .PHONY: catalog-build
-catalog-build: ## Build the catalog image with TEMPLATEFILE overrides 
+catalog-build: catalog-render ## Render the catalog and build the catalog image
 	$(CONTAINER_TOOL) build \
 		-f catalog.Dockerfile \
 		--platform $(PLATFORM) \
-		--build-arg TEMPLATEFILE="$(TEMPLATEFILE)" \
 		--build-arg APP_VERSION="$(APP_VERSION)" \
 		-t $(CATALOG_IMG) .
 

@@ -29,9 +29,6 @@ spec:
     value: ./catalog.Dockerfile
   - name: path-context
     value: .
-  - name: build-args
-    value:
-    - TEMPLATEFILE=konflux-template.yaml
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
@@ -180,6 +177,36 @@ spec:
       workspaces:
       - name: basic-auth
         workspace: git-auth
+    - name: run-opm-command
+      params:
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+      - name: ociStorage
+        value: $(params.output-image).opm
+      - name: ociArtifactExpiresAfter
+        value: $(params.image-expires-after)
+      - name: OPM_ARGS
+        value:
+        - alpha
+        - render-template
+        - basic
+        - --migrate-level=bundle-object-to-csv-metadata
+        - -o
+        - yaml
+        - catalog/konflux-template.yaml
+      - name: OPM_OUTPUT_PATH
+        value: catalog/hyperfleet-operator/catalog.yaml
+      runAfter:
+      - clone-repository
+      taskRef:
+        params:
+        - name: name
+          value: run-opm-command-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-run-opm-command-oci-ta:0.1@sha256:edc7d8263a73aa061ab23b7b16f42ca86a40a0d03848cb64097d97c4d084a3f6
+        - name: kind
+          value: task
+        resolver: bundles
     - name: prefetch-dependencies
       params:
       - name: input
@@ -187,13 +214,13 @@ spec:
       - name: enable-package-registry-proxy
         value: $(params.enable-package-registry-proxy)
       - name: SOURCE_ARTIFACT
-        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+        value: $(tasks.run-opm-command.results.SOURCE_ARTIFACT)
       - name: ociStorage
         value: $(params.output-image).prefetch
       - name: ociArtifactExpiresAfter
         value: $(params.image-expires-after)
       runAfter:
-      - clone-repository
+      - run-opm-command
       taskRef:
         params:
         - name: name
@@ -226,7 +253,6 @@ spec:
         value: $(tasks.clone-repository.results.commit)
       - name: BUILD_ARGS
         value:
-        - TEMPLATEFILE=konflux-template.yaml
         - $(params.build-args[*])
       - name: BUILD_ARGS_FILE
         value: $(params.build-args-file)
