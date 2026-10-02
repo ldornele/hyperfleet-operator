@@ -101,7 +101,8 @@ const (
 // Reason strings for the operator-layer conditions above (HYPERFLEET-1409).
 // These are published API vocabulary — partners may read status.conditions[].reason
 // — so every writer of a condition must use one of these constants rather than an
-// ad hoc string, and the set must stay documented in docs/status-conditions.md.
+// ad hoc string, and the set must stay documented in
+// docs/hyperfleetconfig-reference.md.
 const (
 	// ReasonDeploymentAvailable: Available=True — the operand Deployment reports
 	// Available and all desired replicas are ready.

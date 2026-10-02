@@ -294,6 +294,6 @@ applied directly (requires the `ServiceMonitor` CRD).
 
 ## Related Documentation
 
-- [README](../README.md#observability-endpoints) — observability endpoints quick reference
+- [README](../README.md#observability) — observability endpoints quick reference
 - [HyperFleet metrics standard](https://github.com/openshift-hyperfleet/architecture/blob/main/hyperfleet/standards/metrics.md)
 - [HyperFleet health-endpoints standard](https://github.com/openshift-hyperfleet/architecture/blob/main/hyperfleet/standards/health-endpoints.md)
