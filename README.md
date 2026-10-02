@@ -1,111 +1,62 @@
-# Hyperfleet-Operator
+# HyperFleet Operator
 
-A Kubernetes operator for HyperFleet cluster lifecycle management.
+The HyperFleet Operator packages and operates HyperFleet through OLM. Its
+partner-facing API is a single cluster-scoped `HyperFleetConfig` custom
+resource; the workloads and supporting objects produced from that resource are
+operator-owned implementation details.
 
-## Description
+## Getting Started
 
-hyperfleet-operator packages and delivers HyperFleet as a standard Kubernetes operator, installed and managed through OLM. It exposes a single cluster-scoped custom resource, `HyperFleetConfig`, as the entire partner-facing surface: install, configure, and observe HyperFleet through that one CR and its status conditions, with everything else the operator manages kept internal.
+- **Contributing or developing locally:** follow the
+  [developer guide](docs/developer-guide.md) for prerequisites, local validation,
+  and end-to-end testing.
+- **Installing through OLM:** follow the
+  [OLM bundle, catalog, and development installation guide](docs/olm.md).
+- **Installing on a disconnected OpenShift cluster:** follow the
+  [disconnected installation guide](docs/disconnected-install.md).
 
-## Installation guides
+## Documentation
 
-- [OLM bundle + catalog workflow + developer installation example](docs/olm.md)
-- [Disconnected OpenShift installation with oc-mirror v2](docs/disconnected-install.md)
+### Developing and extending the operator
+
+- [Developer guide](docs/developer-guide.md): repository layout, local workflow,
+  unit and end-to-end tests, generated files, and troubleshooting.
+- [`HyperFleetConfig` reference](docs/hyperfleetconfig-reference.md): complete
+  specification, referenced Secret contracts, status conditions, and known
+  implementation limits.
+- [Component pattern](docs/component-pattern.md): the contract and checklist for
+  adding a shared or bundle-specific component.
+
+### Installing and operating the operator
+
+- [OLM bundle, catalog, and development installation](docs/olm.md)
+- [Disconnected OpenShift installation](docs/disconnected-install.md)
+- [Metrics reference](docs/metrics.md)
 
 The disconnected workflow mirrors the published catalog. The catalog selects
 the OLM bundle and its related images.
 
-## Getting Started
-
-### Prerequisites
-- go version v1.26.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
-
-### To Deploy on the cluster
-**Build and push your image to the location specified by `OPERATOR_IMG`:**
-```sh
-# set your QUAY_USER to push to personal image regsitry
-export QUAY_USER=<YOUR_QUAY_USERNAME>
-
-# Build and push the operator image
-make image-dev OPERATOR_IMG=...
-# default OPERATOR_IMG=quay.io/$QUAY_USER/hyperfleet-operator:dev-<git-sha>
-```
-
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
-
-**Install the CRDs into the cluster:**
-
-```sh
-make install
-```
-
-**Deploy the Manager to the cluster with the image specified by `OPERATOR_IMG`:**
-
-```sh
-make deploy OPERATOR_IMG=...
-# default OPERATOR_IMG=quay.io/$QUAY_USER/hyperfleet-operator:dev-<git-sha>
-```
-
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
-
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
-```sh
-kubectl apply -k config/samples/
-```
-
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**Undeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
 ## Observability
 
-The manager exposes the standard HyperFleet observability endpoints (defaults):
+The manager exposes these endpoints by default:
 
-- **Liveness probe:**  `http://localhost:8080/healthz`
-- **Readiness probe:** `http://localhost:8080/readyz`
-- **Metrics:**         `http://localhost:9090/metrics`
+- Liveness: `http://localhost:8080/healthz`
+- Readiness: `http://localhost:8080/readyz`
+- Metrics: `http://localhost:9090/metrics`
 
-Metrics are served as plain HTTP under the `hyperfleet_operator_*` namespace. Ports
-are configurable via `--health-probe-bind-address` and `--metrics-bind-address`.
-See [docs/metrics.md](docs/metrics.md) for the full metric catalogue, labels, and
+Metrics use the `hyperfleet_operator_*` namespace. See the
+[metrics reference](docs/metrics.md) for the complete catalogue, labels, and
 example PromQL queries.
 
 ## License
 
 Copyright 2026.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at <http://www.apache.org/licenses/LICENSE-2.0>.
 
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
