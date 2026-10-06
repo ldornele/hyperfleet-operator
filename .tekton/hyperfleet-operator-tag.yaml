@@ -252,6 +252,7 @@ spec:
         value:
         - $(params.build-args[*])
         - APP_VERSION=$(tasks.extract-version.results.VERSION)
+        - GIT_SHA=$(tasks.clone-repository.results.commit)
       - name: BUILD_ARGS_FILE
         value: $(params.build-args-file)
       - name: PRIVILEGED_NESTED
