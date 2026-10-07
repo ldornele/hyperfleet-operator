@@ -203,6 +203,10 @@ ifndef CONTAINER_TOOL
 	@echo "Error: No container tool found (docker or podman)"
 	@exit 1
 endif
+ifeq ($(filter $(CONTAINER_TOOL),docker podman),)
+	@echo "Error: Unsupported CONTAINER_TOOL '$(CONTAINER_TOOL)' (must be docker or podman)"
+	@exit 1
+endif
 
 .PHONY: image
 image: check-container-tool manifests generate fmt vet ## Build container image with configurable registry/tag
