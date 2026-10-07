@@ -203,7 +203,7 @@ ifndef CONTAINER_TOOL
 	@echo "Error: No container tool found (docker or podman)"
 	@exit 1
 endif
-ifeq ($(filter $(CONTAINER_TOOL),docker podman),)
+ifeq ($(filter docker podman,$(CONTAINER_TOOL)),)
 	@echo "Error: Unsupported CONTAINER_TOOL '$(CONTAINER_TOOL)' (must be docker or podman)"
 	@exit 1
 endif
