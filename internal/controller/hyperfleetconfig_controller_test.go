@@ -508,7 +508,7 @@ var _ = Describe("HyperFleetConfig Controller", func() {
 		progressingBeforeFailure := conditionByType(cr, hyperfleetv1alpha1.ConditionProgressing)
 		observedGenerationBeforeFailure := cr.Status.ObservedGeneration
 
-		By("pointing auth at an issuer whose discovery endpoint fails, so OIDC discovery errors before referencedSecretData or any component ever runs")
+		By("pointing auth at an issuer whose discovery endpoint fails, so OIDC discovery errors before any component ever runs")
 		badDiscovery := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
